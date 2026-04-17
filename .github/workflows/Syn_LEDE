@@ -1,0 +1,51 @@
+name: Sync upstream lede
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7 18 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.MY_GH_TOKEN }}
+
+      - name: Sync from upstream but keep local workflows
+        env:
+          GH_TOKEN: ${{ secrets.MY_GH_TOKEN }}
+        run: |
+          set -eux
+          git config user.name "liuxindavid"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git remote remove upstream || true
+          git remote add upstream https://github.com/coolsnowwolf/lede.git
+          git fetch upstream --prune
+          git fetch upstream --tags --force
+
+          # 判断上游默认分支
+          if git show-ref --verify --quiet refs/remotes/upstream/main; then
+            UPSTREAM_REF="upstream/main"
+          else
+            UPSTREAM_REF="upstream/master"
+          fi
+
+          # 先把上游内容覆盖到工作区，但排除 .github/workflows
+          git checkout "$UPSTREAM_REF" -- . ':(exclude).github/workflows'
+
+          # 提交变更（如果没有变更就跳过）
+          git add -A
+          git commit -m "Sync upstream lede" || true
+
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+          git push origin HEAD:main
+          git push origin --tags --force
