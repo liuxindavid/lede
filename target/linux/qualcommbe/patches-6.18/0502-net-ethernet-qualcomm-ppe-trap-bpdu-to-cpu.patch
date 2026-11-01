@@ -17,11 +17,16 @@ The rule redirects from all ports. On standalone ports link-local
 packets already reach the CPU through the invalid-VSI redirect, so
 there the rule only changes which queue they arrive on.
 
+Publish the match rule only after its reserved-MAC key is valid.
+Invalidate it before removal, and restore both rows in that order
+after a programming error. Clear the rule on every setup failure
+and during bridge teardown.
+
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -533,9 +533,19 @@ static int ppe_bridge_switchdev_blocking
+@@ -545,13 +545,25 @@ static int ppe_bridge_switchdev_blocking
   */
  int ppe_bridge_setup(struct ppe_device *ppe_dev)
  {
@@ -40,18 +45,46 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +
  	pb = kzalloc(struct_size(pb, ports, ppe_dev->num_ports),
  		     GFP_KERNEL);
- 	if (!pb)
+-	if (!pb)
+-		return -ENOMEM;
++	if (!pb) {
++		ret = -ENOMEM;
++		goto err_trap;
++	}
+ 
+ 	pb->ppe_dev = ppe_dev;
+ 	for (i = 0; i < ppe_dev->num_ports; i++)
+@@ -590,6 +602,9 @@ err_wq:
+ 	destroy_workqueue(pb->fdb_wq);
+ err_free:
+ 	kfree(pb);
++err_trap:
++	if (ppe_mac_trap_clear(ppe_dev, 0))
++		dev_err(ppe_dev->dev, "failed to clear BPDU trap\n");
+ 
+ 	return ret;
+ }
+@@ -613,6 +628,8 @@ void ppe_bridge_destroy(struct ppe_devic
+ 	unregister_switchdev_notifier(&pb->switchdev_nb);
+ 	unregister_netdevice_notifier(&pb->netdev_nb);
+ 	destroy_workqueue(pb->fdb_wq);
++	if (ppe_mac_trap_clear(ppe_dev, 0))
++		dev_err(ppe_dev->dev, "failed to clear BPDU trap\n");
+ 	ppe_dev->bridge = NULL;
+ 	kfree(pb);
+ }
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1599,6 +1599,53 @@ int ppe_port_stp_state_set(struct ppe_de
+@@ -1599,6 +1599,99 @@ int ppe_port_stp_state_set(struct ppe_de
  				  FIELD_PREP(PPE_CST_STATE_PORT_STATE, state));
  }
  
 +/**
-+ * ppe_mac_trap_set - Trap packets with a reserved destination MAC address
++ * ppe_mac_trap_update - Update a reserved destination MAC trap
 + * @ppe_dev: PPE device
 + * @index: Index of the reserved MAC address and of its trap rule
-+ * @addr: MAC address to trap
++ * @addr: MAC address to trap when enabling the rule
++ * @enable: Enable the trap, or remove it when false
 + *
 + * Program the reserved MAC address table and a control packet rule to
 + * redirect matching packets to the CPU port from all ports, bypassing
@@ -61,37 +94,82 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 + *
 + * Return: 0 on success, negative error code on failure.
 + */
-+int ppe_mac_trap_set(struct ppe_device *ppe_dev, int index, const u8 *addr)
++static int ppe_mac_trap_update(struct ppe_device *ppe_dev, int index,
++			       const u8 *addr, bool enable)
 +{
-+	u32 reg, rfdb_cfg[2], app_cfg[3] = {};
-+	int ret;
++	u32 rfdb_reg, app_reg, rfdb_old[2], app_old[3];
++	u32 rfdb_cfg[2] = {}, app_cfg[3] = {};
++	int ret, err;
 +
-+	rfdb_cfg[0] = (u32)addr[2] << 24 | addr[3] << 16 |
-+		      addr[4] << 8 | addr[5];
-+	rfdb_cfg[1] = FIELD_PREP(PPE_RFDB_W1_MAC_ADDR_HI,
-+				 addr[0] << 8 | addr[1]);
-+	rfdb_cfg[1] |= PPE_RFDB_W1_VALID;
++	if (index < 0 || index >= PPE_RFDB_TBL_ENTRIES ||
++	    index >= PPE_APP_CTRL_ENTRIES || (enable && !addr))
++		return -EINVAL;
 +
-+	reg = PPE_RFDB_TBL_ADDR + PPE_RFDB_TBL_INC * index;
-+	ret = regmap_bulk_write(ppe_dev->regmap, reg,
-+				rfdb_cfg, ARRAY_SIZE(rfdb_cfg));
++	rfdb_reg = PPE_RFDB_TBL_ADDR + PPE_RFDB_TBL_INC * index;
++	app_reg = PPE_APP_CTRL_ADDR + PPE_APP_CTRL_INC * index;
++	ret = regmap_bulk_read(ppe_dev->regmap, rfdb_reg, rfdb_old,
++			       ARRAY_SIZE(rfdb_old));
++	if (ret)
++		return ret;
++	ret = regmap_bulk_read(ppe_dev->regmap, app_reg, app_old,
++			       ARRAY_SIZE(app_old));
 +	if (ret)
 +		return ret;
 +
-+	app_cfg[0] = PPE_APP_CTRL_W0_VALID | PPE_APP_CTRL_W0_RFDB_INCLUDE;
-+	app_cfg[0] |= FIELD_PREP(PPE_APP_CTRL_W0_RFDB_BITMAP_LO,
-+				 index < 30 ? BIT(index) : 0);
-+	app_cfg[1] = FIELD_PREP(PPE_APP_CTRL_W1_RFDB_BITMAP_HI,
-+				index < 30 ? 0 : BIT(index - 30));
-+	app_cfg[2] = PPE_APP_CTRL_W2_IN_VLAN_FLTR_BYP;
-+	app_cfg[2] |= PPE_APP_CTRL_W2_IN_STG_BYP;
-+	app_cfg[2] |= FIELD_PREP(PPE_APP_CTRL_W2_CMD,
-+				 PPE_ACTION_REDIRECT_TO_CPU);
++	if (enable) {
++		rfdb_cfg[0] = (u32)addr[2] << 24 | addr[3] << 16 |
++			      addr[4] << 8 | addr[5];
++		rfdb_cfg[1] = FIELD_PREP(PPE_RFDB_W1_MAC_ADDR_HI,
++					 addr[0] << 8 | addr[1]) |
++			      PPE_RFDB_W1_VALID;
++		app_cfg[0] = PPE_APP_CTRL_W0_VALID |
++			     PPE_APP_CTRL_W0_RFDB_INCLUDE |
++			     FIELD_PREP(PPE_APP_CTRL_W0_RFDB_BITMAP_LO,
++					index < 30 ? BIT(index) : 0);
++		app_cfg[1] = FIELD_PREP(PPE_APP_CTRL_W1_RFDB_BITMAP_HI,
++					index < 30 ? 0 : BIT(index - 30));
++		app_cfg[2] = PPE_APP_CTRL_W2_IN_VLAN_FLTR_BYP |
++			     PPE_APP_CTRL_W2_IN_STG_BYP |
++			     FIELD_PREP(PPE_APP_CTRL_W2_CMD,
++					PPE_ACTION_REDIRECT_TO_CPU);
++	}
 +
-+	reg = PPE_APP_CTRL_ADDR + PPE_APP_CTRL_INC * index;
++	/* Publish the application rule last and invalidate it first. */
++	if (!enable) {
++		ret = regmap_bulk_write(ppe_dev->regmap, app_reg, app_cfg,
++					ARRAY_SIZE(app_cfg));
++		if (ret)
++			return ret;
++	}
++	ret = regmap_bulk_write(ppe_dev->regmap, rfdb_reg, rfdb_cfg,
++				ARRAY_SIZE(rfdb_cfg));
++	if (!ret && enable)
++		ret = regmap_bulk_write(ppe_dev->regmap, app_reg, app_cfg,
++					ARRAY_SIZE(app_cfg));
++	if (!ret)
++		return 0;
 +
-+	return regmap_bulk_write(ppe_dev->regmap, reg,
-+				 app_cfg, ARRAY_SIZE(app_cfg));
++	/* Restore with the same invalidate-before-key ordering. */
++	err = regmap_bulk_write(ppe_dev->regmap, app_reg, app_cfg,
++				ARRAY_SIZE(app_cfg));
++	err |= regmap_bulk_write(ppe_dev->regmap, rfdb_reg, rfdb_old,
++				 ARRAY_SIZE(rfdb_old));
++	err |= regmap_bulk_write(ppe_dev->regmap, app_reg, app_old,
++				 ARRAY_SIZE(app_old));
++	if (err)
++		dev_err(ppe_dev->dev,
++			"failed to restore reserved MAC trap %d\n", index);
++	return ret;
++}
++
++int ppe_mac_trap_set(struct ppe_device *ppe_dev, int index, const u8 *addr)
++{
++	return ppe_mac_trap_update(ppe_dev, index, addr, true);
++}
++
++int ppe_mac_trap_clear(struct ppe_device *ppe_dev, int index)
++{
++	return ppe_mac_trap_update(ppe_dev, index, NULL, false);
 +}
 +
  /* Pack an FDB entry into the 3-word layout shared by the FDB table and
@@ -99,11 +177,12 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   */
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -338,6 +338,7 @@ int ppe_fdb_entry_read(struct ppe_device
+@@ -338,6 +338,8 @@ int ppe_fdb_entry_read(struct ppe_device
  		       struct ppe_fdb_entry *entry, bool *valid);
  int ppe_fdb_port_flush(struct ppe_device *ppe_dev, int port, bool static_too);
  int ppe_fdb_vsi_flush(struct ppe_device *ppe_dev, int vsi);
 +int ppe_mac_trap_set(struct ppe_device *ppe_dev, int index, const u8 *addr);
++int ppe_mac_trap_clear(struct ppe_device *ppe_dev, int index);
  int ppe_queue_scheduler_set(struct ppe_device *ppe_dev,
  			    int node_id, bool flow_level, int port,
  			    struct ppe_scheduler_cfg scheduler_cfg);

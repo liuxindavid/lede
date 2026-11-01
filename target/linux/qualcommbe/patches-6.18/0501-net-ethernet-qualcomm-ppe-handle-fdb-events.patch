@@ -28,11 +28,21 @@ flushes the CPU-directed entries which are not tied to any port. The
 spanning tree flush keeps excluding static entries, matching the
 software bridge behavior on blocked ports.
 
+
+Recognize the bridge containing a PPE port as part of the same offload
+domain. The switchdev foreign-device walk searches that bridge before
+replicating a wireless FDB event; treating every non-EDMA device as foreign
+skips assisted learning altogether. A station moving from a wired peer
+AP to local Wi-Fi otherwise leaves its hardware destination on the old
+LAN port until the dynamic entry ages out. Compare PPE instances for
+physical ports as well.
+
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
+Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -14,10 +14,13 @@
+@@ -13,10 +13,13 @@
   * the bridge.
   */
  
@@ -46,7 +56,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <net/switchdev.h>
  
  #include "edma_port.h"
-@@ -53,22 +56,46 @@ struct ppe_bridge_port {
+@@ -52,22 +55,46 @@ struct ppe_bridge_port {
   * @netdev_nb: Notifier for bridge join and leave events of the ports.
   * @switchdev_nb: Notifier for atomic switchdev events (FDB).
   * @switchdev_blocking_nb: Notifier for blocking switchdev events.
@@ -95,7 +105,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static int ppe_bridge_port_id(struct net_device *dev)
  {
  	struct edma_port_priv *port_priv = netdev_priv(dev);
-@@ -238,7 +265,14 @@ static void ppe_bridge_port_leave(struct
+@@ -237,7 +264,14 @@ static void ppe_bridge_port_leave(struct
  	 */
  	ppe_port_stp_state_set(ppe_dev, port, PPE_STP_STATE_FORWARDING);
  
@@ -111,7 +121,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  static int ppe_bridge_stp_state_set(struct ppe_bridge *pb,
-@@ -272,7 +306,7 @@ static int ppe_bridge_stp_state_set(stru
+@@ -271,7 +305,7 @@ static int ppe_bridge_stp_state_set(stru
  		return ret;
  
  	if (stp_state != PPE_STP_STATE_FORWARDING)
@@ -120,7 +130,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	return ret;
  }
-@@ -335,12 +369,139 @@ static int ppe_bridge_netdev_event(struc
+@@ -334,12 +368,152 @@ static int ppe_bridge_netdev_event(struc
  	return notifier_from_errno(ret);
  }
  
@@ -240,7 +250,20 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +static bool ppe_bridge_foreign_dev_check(const struct net_device *dev,
 +					 const struct net_device *foreign_dev)
 +{
-+	return !edma_port_dev_check(foreign_dev);
++	const struct edma_port_priv *port_priv = netdev_priv(dev);
++	const struct edma_port_priv *foreign_priv;
++
++	/* The switchdev walk must find our bridge before it can replicate
++	 * a foreign port's FDB event to its PPE ports for assisted learning.
++	 */
++	if (netif_is_bridge_master(foreign_dev))
++		return netdev_master_upper_dev_get_rcu(dev) != foreign_dev;
++
++	if (!edma_port_dev_check(foreign_dev))
++		return true;
++
++	foreign_priv = netdev_priv(foreign_dev);
++	return port_priv->ppe_port->ppe_dev != foreign_priv->ppe_port->ppe_dev;
 +}
 +
  static int ppe_bridge_switchdev_event(struct notifier_block *nb,
@@ -262,7 +285,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	return NOTIFY_DONE;
  }
  
-@@ -384,10 +545,16 @@ int ppe_bridge_setup(struct ppe_device *
+@@ -383,10 +557,16 @@ int ppe_bridge_setup(struct ppe_device *
  	for (i = 0; i < ppe_dev->num_ports; i++)
  		pb->ports[i].vsi = -1;
  
@@ -280,7 +303,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	pb->switchdev_nb.notifier_call = ppe_bridge_switchdev_event;
  	ret = register_switchdev_notifier(&pb->switchdev_nb);
-@@ -407,6 +574,8 @@ err_switchdev_nb:
+@@ -406,6 +586,8 @@ err_switchdev_nb:
  	unregister_switchdev_notifier(&pb->switchdev_nb);
  err_netdev_nb:
  	unregister_netdevice_notifier(&pb->netdev_nb);
@@ -289,7 +312,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  err_free:
  	kfree(pb);
  
-@@ -431,6 +600,7 @@ void ppe_bridge_destroy(struct ppe_devic
+@@ -430,6 +612,7 @@ void ppe_bridge_destroy(struct ppe_devic
  	unregister_switchdev_blocking_notifier(&pb->switchdev_blocking_nb);
  	unregister_switchdev_notifier(&pb->switchdev_nb);
  	unregister_netdevice_notifier(&pb->netdev_nb);
@@ -299,7 +322,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1804,19 +1804,13 @@ out:
+@@ -1806,19 +1806,13 @@ out:
  	return ret;
  }
  
@@ -325,7 +348,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  {
  	struct ppe_fdb_entry entry;
  	bool valid;
-@@ -1827,7 +1821,10 @@ int ppe_fdb_port_flush(struct ppe_device
+@@ -1829,7 +1823,10 @@ int ppe_fdb_port_flush(struct ppe_device
  		if (ret)
  			return ret;
  
@@ -337,7 +360,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  			continue;
  
  		ret = ppe_fdb_entry_del(ppe_dev, &entry);
-@@ -1839,6 +1836,34 @@ int ppe_fdb_port_flush(struct ppe_device
+@@ -1841,6 +1838,34 @@ int ppe_fdb_port_flush(struct ppe_device
  }
  
  /**

@@ -25,7 +25,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -15,6 +15,7 @@
+@@ -14,6 +14,7 @@
   */
  
  #include <linux/etherdevice.h>
@@ -33,7 +33,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <linux/if_bridge.h>
  #include <linux/netdevice.h>
  #include <linux/notifier.h>
-@@ -43,10 +44,12 @@ struct ppe_bridge_vsi {
+@@ -42,10 +43,12 @@ struct ppe_bridge_vsi {
   * struct ppe_bridge_port - Bridge state of a PPE port.
   * @bridge: Bridge device the port is offloaded to, NULL when the port
   * is not offloaded.
@@ -46,7 +46,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	int vsi;
  };
  
-@@ -57,12 +60,20 @@ struct ppe_bridge_port {
+@@ -56,12 +59,20 @@ struct ppe_bridge_port {
   * @switchdev_nb: Notifier for atomic switchdev events (FDB).
   * @switchdev_blocking_nb: Notifier for blocking switchdev events.
   * @fdb_wq: Ordered workqueue processing the deferred FDB events.
@@ -69,7 +69,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   */
  struct ppe_bridge {
  	struct ppe_device *ppe_dev;
-@@ -70,10 +81,35 @@ struct ppe_bridge {
+@@ -69,10 +80,35 @@ struct ppe_bridge {
  	struct notifier_block switchdev_nb;
  	struct notifier_block switchdev_blocking_nb;
  	struct workqueue_struct *fdb_wq;
@@ -105,7 +105,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  /**
   * struct ppe_bridge_fdb_work - Deferred FDB event of an offloaded port.
   * @work: Work structure.
-@@ -157,6 +193,143 @@ static void ppe_bridge_port_offload_mark
+@@ -156,6 +192,143 @@ static void ppe_bridge_port_offload_mark
  	WRITE_ONCE(port_priv->br_offload, offloaded);
  }
  
@@ -249,7 +249,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static int ppe_bridge_port_join(struct ppe_bridge *pb,
  				struct net_device *dev,
  				struct net_device *br,
-@@ -217,8 +390,12 @@ static int ppe_bridge_port_join(struct p
+@@ -216,8 +389,12 @@ static int ppe_bridge_port_join(struct p
  	pb->vsis[vsi].br = br;
  	pb->vsis[vsi].num_ports++;
  	pb->ports[port].bridge = br;
@@ -262,7 +262,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	return 0;
  
  err_txmac:
-@@ -251,6 +428,7 @@ static void ppe_bridge_port_leave(struct
+@@ -250,6 +427,7 @@ static void ppe_bridge_port_leave(struct
  	ppe_port_vsi_set(ppe_dev, port, -1);
  
  	pb->ports[port].bridge = NULL;
@@ -270,7 +270,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	pb->ports[port].vsi = -1;
  
  	ppe_vsi_members_set(ppe_dev, vsi,
-@@ -273,6 +451,9 @@ static void ppe_bridge_port_leave(struct
+@@ -272,6 +450,9 @@ static void ppe_bridge_port_leave(struct
  	 */
  	if (!pb->vsis[vsi].num_ports)
  		ppe_fdb_vsi_flush(ppe_dev, vsi);
@@ -280,7 +280,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  static int ppe_bridge_stp_state_set(struct ppe_bridge *pb,
-@@ -555,6 +736,9 @@ int ppe_bridge_setup(struct ppe_device *
+@@ -569,6 +750,9 @@ int ppe_bridge_setup(struct ppe_device *
  	for (i = 0; i < ppe_dev->num_ports; i++)
  		pb->ports[i].vsi = -1;
  
@@ -290,7 +290,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	pb->fdb_wq = alloc_ordered_workqueue("ppe_bridge_fdb", 0);
  	if (!pb->fdb_wq) {
  		ret = -ENOMEM;
-@@ -603,6 +787,9 @@ err_free:
+@@ -620,6 +804,9 @@ err_trap:
  void ppe_bridge_destroy(struct ppe_device *ppe_dev)
  {
  	struct ppe_bridge *pb = ppe_dev->bridge;
@@ -300,7 +300,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	if (!pb)
  		return;
-@@ -610,7 +797,21 @@ void ppe_bridge_destroy(struct ppe_devic
+@@ -627,7 +814,21 @@ void ppe_bridge_destroy(struct ppe_devic
  	unregister_switchdev_blocking_notifier(&pb->switchdev_blocking_nb);
  	unregister_switchdev_notifier(&pb->switchdev_nb);
  	unregister_netdevice_notifier(&pb->netdev_nb);
@@ -319,6 +319,6 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +		kfree(fdb);
 +	}
 +
+ 	if (ppe_mac_trap_clear(ppe_dev, 0))
+ 		dev_err(ppe_dev->dev, "failed to clear BPDU trap\n");
  	ppe_dev->bridge = NULL;
- 	kfree(pb);
- }

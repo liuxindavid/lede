@@ -21,7 +21,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -46,13 +46,21 @@ struct ppe_bridge_vsi {
+@@ -45,13 +45,21 @@ struct ppe_bridge_vsi {
   * is not offloaded.
   * @dev: Net device of the port, valid while the port is offloaded.
   * @vsi: VSI ID the port is bound to, negative when not offloaded.
@@ -43,7 +43,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  /**
   * struct ppe_bridge - Global PPE bridge offload state.
   * @ppe_dev: Back pointer to the PPE device.
-@@ -154,19 +162,34 @@ static int ppe_bridge_vsi_get(struct ppe
+@@ -153,19 +161,34 @@ static int ppe_bridge_vsi_get(struct ppe
  	return vsi;
  }
  
@@ -86,7 +86,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  /* Update the per-port egress tag modes of a VSI. The VSI of a
-@@ -336,8 +359,8 @@ static int ppe_bridge_port_join(struct p
+@@ -335,8 +358,8 @@ static int ppe_bridge_port_join(struct p
  				struct netlink_ext_ack *extack)
  {
  	struct ppe_device *ppe_dev = pb->ppe_dev;
@@ -96,7 +96,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	int vsi, ret;
  
  	/* Failure to back the bridge with a VSI is not an error, the
-@@ -356,9 +379,14 @@ static int ppe_bridge_port_join(struct p
+@@ -355,9 +378,14 @@ static int ppe_bridge_port_join(struct p
  		return 0;
  	}
  
@@ -113,7 +113,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (ret)
  		return ret;
  
-@@ -392,6 +420,7 @@ static int ppe_bridge_port_join(struct p
+@@ -391,6 +419,7 @@ static int ppe_bridge_port_join(struct p
  	pb->ports[port].bridge = br;
  	pb->ports[port].dev = dev;
  	pb->ports[port].vsi = vsi;
@@ -121,7 +121,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	queue_delayed_work(pb->fdb_wq, &pb->fdb_sync,
  			   PPE_BRIDGE_FDB_SYNC_INTERVAL);
-@@ -404,7 +433,7 @@ err_txmac:
+@@ -403,7 +432,7 @@ err_txmac:
  err_vsi:
  	ppe_port_vsi_set(ppe_dev, port, -1);
  err_members:
@@ -130,7 +130,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	return ret;
  }
-@@ -413,6 +442,7 @@ static void ppe_bridge_port_leave(struct
+@@ -412,6 +441,7 @@ static void ppe_bridge_port_leave(struct
  				  struct net_device *dev)
  {
  	struct ppe_device *ppe_dev = pb->ppe_dev;
@@ -138,7 +138,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	int port = ppe_bridge_port_id(dev);
  	int vsi = pb->ports[port].vsi;
  
-@@ -427,12 +457,18 @@ static void ppe_bridge_port_leave(struct
+@@ -426,12 +456,18 @@ static void ppe_bridge_port_leave(struct
  	ppe_port_bridge_txmac_set(ppe_dev, port, false);
  	ppe_port_vsi_set(ppe_dev, port, -1);
  
@@ -159,7 +159,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	pb->vsis[vsi].num_ports--;
  	if (!pb->vsis[vsi].num_ports)
-@@ -492,6 +528,35 @@ static int ppe_bridge_stp_state_set(stru
+@@ -491,6 +527,47 @@ static int ppe_bridge_stp_state_set(stru
  	return ret;
  }
  
@@ -171,22 +171,34 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +	unsigned int member, uuc, umc, bc;
 +	int port = ppe_bridge_port_id(dev);
 +	int vsi = pb->ports[port].vsi;
++	unsigned long old_flags;
 +	int ret;
 +
++	old_flags = pb->ports[port].flags;
 +	pb->ports[port].flags &= ~flags.mask;
 +	pb->ports[port].flags |= flags.val & flags.mask;
 +
 +	if (flags.mask & BR_LEARNING) {
 +		ret = ppe_port_bridge_learning_set(ppe_dev, port,
 +						   flags.val & BR_LEARNING);
-+		if (ret)
++		if (ret) {
++			pb->ports[port].flags = old_flags;
 +			return ret;
++		}
 +	}
 +
 +	if (flags.mask & (BR_FLOOD | BR_MCAST_FLOOD | BR_BCAST_FLOOD)) {
 +		ppe_bridge_vsi_bitmaps(pb, vsi, &member, &uuc, &umc, &bc);
-+		return ppe_vsi_members_set(ppe_dev, vsi, member, uuc,
-+					   umc, bc);
++		ret = ppe_vsi_members_set(ppe_dev, vsi, member, uuc, umc, bc);
++		if (ret) {
++			pb->ports[port].flags = old_flags;
++			ppe_bridge_vsi_bitmaps(pb, vsi, &member, &uuc, &umc, &bc);
++			ppe_vsi_members_set(ppe_dev, vsi, member, uuc, umc, bc);
++			if (flags.mask & BR_LEARNING)
++				ppe_port_bridge_learning_set(ppe_dev, port,
++							     old_flags & BR_LEARNING);
++			return ret;
++		}
 +	}
 +
 +	return 0;
@@ -195,7 +207,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static int ppe_bridge_attr_set(struct net_device *dev, const void *ctx,
  			       const struct switchdev_attr *attr,
  			       struct netlink_ext_ack *extack)
-@@ -507,10 +572,11 @@ static int ppe_bridge_attr_set(struct ne
+@@ -506,10 +583,11 @@ static int ppe_bridge_attr_set(struct ne
  	case SWITCHDEV_ATTR_ID_PORT_STP_STATE:
  		return ppe_bridge_stp_state_set(pb, dev, attr->u.stp_state);
  	case SWITCHDEV_ATTR_ID_PORT_PRE_BRIDGE_FLAGS:
