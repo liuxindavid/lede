@@ -1,6 +1,6 @@
 --- a/lib/fts.in.h
 +++ b/lib/fts.in.h
-@@ -299,7 +299,8 @@ int      _GL_FUNCDECL_SYS_NAME (fts_clos
+@@ -299,7 +299,8 @@
  _GL_ATTRIBUTE_NODISCARD
  FTS     *_GL_FUNCDECL_SYS_NAME (fts_open) (char * const *, int,
                     int (*)(const FTSENT **, const FTSENT **))

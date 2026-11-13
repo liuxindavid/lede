@@ -1,6 +1,6 @@
 --- a/lib/fts.in.h
 +++ b/lib/fts.in.h
-@@ -291,20 +291,20 @@ typedef struct _ftsent {
+@@ -291,20 +291,20 @@
  __BEGIN_DECLS
  
   _GL_ATTRIBUTE_NODISCARD

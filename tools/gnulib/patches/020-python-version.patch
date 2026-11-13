@@ -9,7 +9,7 @@
  from .constants import substart
  from .GLConfig import GLConfig
  
-@@ -50,3 +52,15 @@ def rewrite_file_name(file_name: str, co
+@@ -50,3 +52,15 @@
      else:  # file is not a special file
          result = file_name
      return os.path.normpath(result)
@@ -27,7 +27,7 @@
 +    return version.strip()
 --- a/pygnulib/GLImport.py
 +++ b/pygnulib/GLImport.py
-@@ -40,6 +40,7 @@ from .constants import (
+@@ -40,6 +40,7 @@
      rmtree,
  )
  from .functions import rewrite_file_name
@@ -35,7 +35,7 @@
  from .GLError import GLError
  from .GLConfig import GLConfig
  from .GLModuleSystem import GLModuleTable
-@@ -125,7 +126,8 @@ class GLImport:
+@@ -125,7 +126,8 @@
                              for version in versions })
              self.config.setAutoconfVersion(version)
              if version < 2.64:

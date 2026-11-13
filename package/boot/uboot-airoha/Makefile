@@ -17,31 +17,6 @@ define U-Boot/Default
   HIDDEN:=1
 endef
 
-define U-Boot/an7581_gemtek_w1700k
-  NAME:=Gemtek W1700K (UBI)
-  UBOOT_CONFIG:=an7581_w1700k
-  BUILD_DEVICES:=gemtek_w1700k-ubi
-  BUILD_SUBTARGET:=an7581
-endef
-
-define U-Boot/an7581_nokia_valyrian
-  NAME:=Nokia Valyrian
-  UBOOT_CONFIG:=an7581_nokia_valyrian
-  BUILD_DEVICES:=nokia_valyrian
-  BUILD_SUBTARGET:=an7581
-  BL2_IMAGE:=an7581-bl2.bin
-  BL31_IMAGE:=an7581-bl31.bin
-endef
-
-define U-Boot/an7581_nokia_xg-040g-md
-  NAME:=Nokia XG-040G-MD
-  UBOOT_CONFIG:=an7581_nokia_xg-040g-md
-  BUILD_DEVICES:=nokia_xg-040g-md-ubi
-  BUILD_SUBTARGET:=an7581
-  BL2_IMAGE:=an7581-bl2.bin
-  BL31_IMAGE:=an7581-bl31.bin
-endef
-
 define U-Boot/an7581_rfb
   NAME:=AN7581 Reference Board
   UBOOT_CONFIG:=an7581_evb
@@ -50,16 +25,6 @@ define U-Boot/an7581_rfb
   BL2_IMAGE:=an7581-bl2.bin
   BL31_IMAGE:=an7581-bl31.bin
   DEPENDS:=+trusted-firmware-a-an7581-bl31
-endef
-
-define U-Boot/an7583_nokia_xg-040g-mf
-  NAME:=Nokia XG-040G-MF
-  UBOOT_CONFIG:=an7583_nokia_xg-040g-mf
-  BUILD_DEVICES:=nokia_xg-040g-mf-ubi
-  BUILD_SUBTARGET:=an7583
-  BL2_IMAGE:=an7583-bl2.bin
-  BL31_IMAGE:=an7583-bl31.bin
-  DEPENDS:=+trusted-firmware-a-an7583-bl31
 endef
 
 define U-Boot/an7583_rfb
@@ -72,28 +37,14 @@ define U-Boot/an7583_rfb
   DEPENDS:=+trusted-firmware-a-an7583-bl31
 endef
 
-define U-Boot/en7523_rfb
-  NAME:=EN7523 Reference Board
-  UBOOT_CONFIG:=en7523_evb
-  BUILD_DEVICES:=airoha_en7523-evb
-  BUILD_SUBTARGET:=en7523
-  BL2_IMAGE:=en7523-bl2.bin
-  BL31_IMAGE:=en7523-bl31.bin
-endef
-
-UBOOT_TARGETS := \
-	an7581_gemtek_w1700k \
-	an7581_nokia_valyrian \
-	an7581_nokia_xg-040g-md \
-	an7581_rfb \
-	an7583_nokia_xg-040g-mf \
-	an7583_rfb \
-	en7523_rfb
+UBOOT_TARGETS := an7581_rfb an7583_rfb
 
 UBOOT_CUSTOMIZE_CONFIG := \
 	--disable TOOLS_KWBIMAGE \
 	--disable TOOLS_LIBCRYPTO \
 	--disable TOOLS_MKEFICAPSULE \
+	--enable DM_RNG \
+	--enable RNG_AIROHA \
 	--enable SERIAL_RX_BUFFER \
 	--set-val SERIAL_RX_BUFFER_SIZE 256
 

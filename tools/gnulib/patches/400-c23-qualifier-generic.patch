@@ -62,7 +62,7 @@ to prevent it from acting like a macro.
 
 --- a/lib/argp-help.c
 +++ b/lib/argp-help.c
-@@ -1601,7 +1601,7 @@ argp_doc (const struct argp *argp, const
+@@ -1601,7 +1601,7 @@
  
    if (doc)
      {
@@ -101,7 +101,7 @@ to prevent it from acting like a macro.
     declares a C++ alias called GNULIB_NAMESPACE::func
 --- a/lib/c-strstr.c
 +++ b/lib/c-strstr.c
-@@ -28,5 +28,5 @@ c_strstr (const char *haystack, const ch
+@@ -28,5 +28,5 @@
  {
    /* POSIX says that strstr() interprets the strings as byte sequences, not
       as character sequences in the current locale.  */
@@ -110,7 +110,7 @@ to prevent it from acting like a macro.
  }
 --- a/lib/dfa.c
 +++ b/lib/dfa.c
-@@ -4069,7 +4069,7 @@ comsubs (char *left, char const *right)
+@@ -4069,7 +4069,7 @@
    for (char *lcp = left; *lcp != '\0'; lcp++)
      {
        idx_t len = 0;
@@ -121,7 +121,7 @@ to prevent it from acting like a macro.
            idx_t i;
 --- a/lib/mbschr.c
 +++ b/lib/mbschr.c
-@@ -65,5 +65,5 @@ mbschr (const char *string, int c)
+@@ -65,5 +65,5 @@
        return NULL;
      }
    else
@@ -130,7 +130,7 @@ to prevent it from acting like a macro.
  }
 --- a/lib/mbspbrk.c
 +++ b/lib/mbspbrk.c
-@@ -90,5 +90,5 @@ mbspbrk (const char *string, const char
+@@ -90,5 +90,5 @@
        return NULL;
      }
    else
@@ -139,7 +139,7 @@ to prevent it from acting like a macro.
  }
 --- a/lib/mbsrchr.c
 +++ b/lib/mbsrchr.c
-@@ -64,5 +64,5 @@ mbsrchr (const char *string, int c)
+@@ -64,5 +64,5 @@
        return (char *) result;
      }
    else
@@ -148,7 +148,7 @@ to prevent it from acting like a macro.
  }
 --- a/lib/memchr2.c
 +++ b/lib/memchr2.c
-@@ -55,7 +55,7 @@ memchr2 (void const *s, int c1_in, int c
+@@ -55,7 +55,7 @@
    c2 = (unsigned char) c2_in;
  
    if (c1 == c2)
@@ -159,7 +159,7 @@ to prevent it from acting like a macro.
       Do this until VOID_PTR is aligned on a longword boundary.  */
 --- a/lib/stdlib.in.h
 +++ b/lib/stdlib.in.h
-@@ -238,9 +238,9 @@ _GL_INLINE_HEADER_BEGIN
+@@ -238,9 +238,9 @@
  
  /* Declarations for ISO C N3322.  */
  #if defined __GNUC__ && __GNUC__ >= 15 && !defined __clang__
@@ -174,7 +174,7 @@ to prevent it from acting like a macro.
                           int (*__compare) (const void *, const void *))
 --- a/lib/string-desc.c
 +++ b/lib/string-desc.c
-@@ -113,9 +113,9 @@ _sd_index (idx_t s_nbytes, const char *s
+@@ -113,9 +113,9 @@
  {
    if (s_nbytes > 0)
      {
@@ -188,7 +188,7 @@ to prevent it from acting like a macro.
  }
 --- a/lib/string.in.h
 +++ b/lib/string.in.h
-@@ -403,7 +403,6 @@ _GL_CXXALIASWARN1 (memchr, void const *,
+@@ -403,7 +403,6 @@
  _GL_CXXALIASWARN (memchr);
  # endif
  #elif defined GNULIB_POSIXCHECK
@@ -196,7 +196,7 @@ to prevent it from acting like a macro.
  /* Assume memchr is always declared.  */
  _GL_WARN_ON_USE_CXX (memchr,
                       const void *, void *, (void const *, int, size_t),
-@@ -655,7 +654,6 @@ _GL_WARN_ON_USE (stpncpy, "stpncpy is un
+@@ -655,7 +654,6 @@
  #if defined GNULIB_POSIXCHECK
  /* strchr() does not work with multibyte strings if the locale encoding is
     GB18030 and the character to be searched is a digit.  */
@@ -204,7 +204,7 @@ to prevent it from acting like a macro.
  /* Assume strchr is always declared.  */
  _GL_WARN_ON_USE_CXX (strchr,
                       const char *, char *, (const char *, int),
-@@ -976,7 +974,6 @@ _GL_CXXALIASWARN (strpbrk);
+@@ -976,7 +974,6 @@
     Even in this simple case, it does not work with multibyte strings if the
     locale encoding is GB18030 and one of the characters to be searched is a
     digit.  */
@@ -212,7 +212,7 @@ to prevent it from acting like a macro.
  _GL_WARN_ON_USE_CXX (strpbrk,
                       const char *, char *, (const char *, const char *),
                       "strpbrk cannot work correctly on character strings "
-@@ -1006,7 +1003,6 @@ _GL_WARN_ON_USE (strspn, "strspn cannot
+@@ -1006,7 +1003,6 @@
  #if defined GNULIB_POSIXCHECK
  /* strrchr() does not work with multibyte strings if the locale encoding is
     GB18030 and the character to be searched is a digit.  */
@@ -222,7 +222,7 @@ to prevent it from acting like a macro.
                       const char *, char *, (const char *, int),
 --- a/lib/wchar.in.h
 +++ b/lib/wchar.in.h
-@@ -316,7 +316,7 @@ _GL_EXTERN_C int wcsncmp (const wchar_t
+@@ -316,7 +316,7 @@
    _GL_ATTRIBUTE_NONNULL_IF_NONZERO (1, 3)
    _GL_ATTRIBUTE_NONNULL_IF_NONZERO (2, 3);
  # ifndef __cplusplus
@@ -233,7 +233,7 @@ to prevent it from acting like a macro.
  _GL_EXTERN_C wchar_t *wmemset (wchar_t *__s, wchar_t __wc, size_t __n)
 --- a/tests/test-bsearch.c
 +++ b/tests/test-bsearch.c
-@@ -26,7 +26,7 @@ static void *
+@@ -26,7 +26,7 @@
  lib_bsearch (void const *key, void const *base, size_t nel, size_t width,
               int (*compar) (void const *, void const *))
  {
@@ -244,7 +244,7 @@ to prevent it from acting like a macro.
                                             size_t,
 --- a/tests/test-memchr.c
 +++ b/tests/test-memchr.c
-@@ -31,7 +31,7 @@ SIGNATURE_CHECK (memchr, void *, (void c
+@@ -31,7 +31,7 @@
  static void *
  lib_memchr (void const *s, int c, size_t n)
  {
